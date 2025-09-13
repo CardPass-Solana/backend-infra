@@ -10,6 +10,7 @@ pipeline {
     PORT        = '9000'
     APP_MODULE  = 'app.main:app' // ASGI app path
     PIP_CACHE_DIR = "${WORKSPACE}/.pip-cache"
+    PYTHONPATH  = "${WORKSPACE}"
   }
 
   stages {
