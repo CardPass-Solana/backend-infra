@@ -1,5 +1,5 @@
 pipeline {
-  agent { node { label 'template_name' } }
+  agent { node { label 'docker-agent-fastapi' } }
 
   options {
     timestamps()
