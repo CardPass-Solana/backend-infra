@@ -1,18 +1,8 @@
 pipeline {
-  agent any
-
-  options {
-    timestamps()
-    disableConcurrentBuilds()
-  }
-
-  environment {
-    IMAGE           = 'fastapi-runtime:py312-slim'
-    CONTAINER_NAME  = 'fastapi-sidecar'
-    APP_PORT        = '9000'
-    HOST_PORT       = '9000'
-    APP_DIR_IN_CONT = '/app'
-    APP_IMPORT      = 'main:app'  // change if FastAPI app has a different module:var
+  agent {
+    node {
+        label 'docker-agent-fastapi'
+    }
   }
 
   triggers {
