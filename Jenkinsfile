@@ -1,104 +1,71 @@
 pipeline {
-  agent {
-    node {
-        label 'docker-agent-fastapi'
-    }
+  agent { node { label 'template_name' } }
+
+  options {
+    timestamps()
+    ansiColor('xterm')
+    timeout(time: 20, unit: 'MINUTES')
   }
 
-  triggers {
-    // Poll SCM every 2 minutes
-    pollSCM('H/2 * * * *')
+  environment {
+    PORT        = '9000'
+    APP_MODULE  = 'app.main:app' // ASGI app path
+    PIP_CACHE_DIR = "${WORKSPACE}/.pip-cache"
   }
 
   stages {
     stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Deps') {
       steps {
-        checkout scm
+        sh '''
+          set -e
+          mkdir -p "$PIP_CACHE_DIR"
+          if [ -f requirements.txt ]; then
+            echo "[deps] Installing requirements.txt..."
+            pip3 install --no-cache-dir --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
+          else
+            echo "[deps] No requirements.txt found; skipping."
+          fi
+        '''
       }
     }
 
-    stage('Start or Reuse Sidecar') {
+    stage('Start FastAPI') {
       steps {
         sh '''
-          set -euo pipefail
+          set -e
+          # Launch in background
+          run-fastapi "$APP_MODULE" &
+          echo $! > fastapi.pid
 
-          # Pull image if not present (THROWS ERROR FOR NOW, LOCAL BUILD ONLY)
-          if ! docker image inspect "$IMAGE" > /dev/null 2>&1; then
-            # echo "Pulling image $IMAGE ..."
-            # docker pull "$IMAGE" || true
-            echo "Image $IMAGE not found locally"
-            exit 1
-          fi
-
-          # Create a user-defined network once
-          if ! docker network inspect fastapi_net > /dev/null 2>&1; then
-            docker network create fastapi_net
-          fi
-
-          # If container exists but is stopped, start it. If running, reuse it.
-          if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
-            if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME")" = "true" ]; then
-              echo "Container $CONTAINER_NAME already running. Reusing."
-              # ensure env is correct; optional restart to pick updated env
-              # docker restart "$CONTAINER_NAME"
-            else
-              echo "Starting existing container $CONTAINER_NAME ..."
-              docker start "$CONTAINER_NAME"
-            fi
-          else
-            echo "Launching new container $CONTAINER_NAME ..."
-            docker run -d --name "$CONTAINER_NAME" \
-              --network fastapi_net \
-              -p "$HOST_PORT:$APP_PORT" \
-              -e APP_IMPORT="$APP_IMPORT" \
-              -e PORT="$APP_PORT" \
-              -v "$PWD":"$APP_DIR_IN_CONT":rw \
-              "$IMAGE"
-          fi
-
-          echo "Waiting for service to respond ..."
-          for i in $(seq 1 40); do
-            if curl -fsS "http://127.0.0.1:$HOST_PORT/health" >/dev/null 2>&1 || \
-               curl -fsS "http://127.0.0.1:$HOST_PORT/" >/dev/null 2>&1; then
-              echo "Service is up."
+          # Wait until HTTP ready on /health or /
+          for i in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1 || \
+               curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+              echo "[health] FastAPI is up."
               exit 0
             fi
-            sleep 1
+            sleep 0.5
           done
-
-          echo "Service did not become healthy in time."
-          docker logs --tail=200 "$CONTAINER_NAME" || true
+          echo "[health] FastAPI did not become ready in time."
           exit 1
         '''
       }
     }
 
-    stage('Unit/Integration Tests') {
-      steps {
-        // Example: run pytest inside the container against mounted source
-        // sh '''
-        //   set -euo pipefail
-        //   # If you keep tests in ./tests, this runs inside the same runtime
-        //   # Adjust command if you use tox or no pytest.
-        //   docker exec "$CONTAINER_NAME" /venv/bin/python -m pytest -q || {
-        //     echo "Tests failed. Showing last logs:"
-        //     docker logs --tail=200 "$CONTAINER_NAME" || true
-        //     exit 1
-        //   }
-        // '''
-        sh 'echo "No tests defined. Skipping."'
-      }
-    }
-
-    stage('Smoke Check') {
+    stage('Test') {
       steps {
         sh '''
-          set -euo pipefail
-          curl -fsS "http://127.0.0.1:$HOST_PORT/" >/dev/null || {
-            echo "Smoke check failed."
-            exit 1
-          }
-          echo "Smoke check passed."
+          set -e
+          # Your tests can hit http://127.0.0.1:${PORT}
+          if [ -d test ] || [ -d tests ]; then
+            pytest -q
+          else
+            echo "[test] No tests directory; skipping."
+          fi
         '''
       }
     }
@@ -106,16 +73,13 @@ pipeline {
 
   post {
     always {
-      script {
-        // Keep container running for manual testing
-        echo "$CONTAINER_NAME running on port ${HOST_PORT}"
-        echo "To rebuild deps, update requirements.txt and push; container will auto-install on restart."
-      }
-    }
-    failure {
       sh '''
-        echo "Build failed. Container logs tail:"
-        docker logs --tail=200 "$CONTAINER_NAME" || true
+        if [ -f fastapi.pid ]; then
+          kill "$(cat fastapi.pid)" 2>/dev/null || true
+          rm -f fastapi.pid
+        else
+          pkill -f "uvicorn" 2>/dev/null || true
+        fi
       '''
     }
   }
