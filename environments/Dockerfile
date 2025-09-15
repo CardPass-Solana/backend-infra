@@ -6,7 +6,8 @@ USER root
 RUN apk add --no-cache \
       python3 py3-pip \
       curl bash git \
-  && python3 -m venv /opt/venv
+  && python3 -m venv /opt/venv \
+  && chown -R jenkins:jenkins /opt/venv
 
 # Ensure venv is always used
 ENV PATH="/opt/venv/bin:$PATH"
