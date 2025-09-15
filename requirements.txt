@@ -2,3 +2,7 @@ fastapi
 uvicorn[standard]
 pytest
 httpx
+# Optional for signature verification on /auth/verify
+pynacl
+PyJWT
+python-dotenv
