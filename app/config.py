@@ -40,6 +40,7 @@ class Settings:
     JWT_COOKIE_SECURE: bool = True
     JWT_COOKIE_SAMESITE: str = "none"  # lax | strict | none
     JWT_COOKIE_PATH: str = "/"
+    JWT_COOKIE_PARTITIONED: bool = True
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://app:app@localhost:5432/app"
@@ -85,6 +86,9 @@ def get_settings() -> Settings:
         JWT_COOKIE_SECURE=_str_to_bool(os.getenv("JWT_COOKIE_SECURE"), True),
         JWT_COOKIE_SAMESITE=os.getenv("JWT_COOKIE_SAMESITE", Settings.JWT_COOKIE_SAMESITE).lower(),
         JWT_COOKIE_PATH=os.getenv("JWT_COOKIE_PATH", Settings.JWT_COOKIE_PATH),
+        JWT_COOKIE_PARTITIONED=_str_to_bool(
+            os.getenv("JWT_COOKIE_PARTITIONED"), Settings.JWT_COOKIE_PARTITIONED
+        ),
         DATABASE_URL=database_url,
         AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID", None) or None,
         AWS_SECRET_ACCESS_KEY=os.getenv("AWS_SECRET_ACCESS_KEY", None) or None,

@@ -45,6 +45,7 @@ JWT_COOKIE_DOMAIN = settings.JWT_COOKIE_DOMAIN
 JWT_COOKIE_SECURE = settings.JWT_COOKIE_SECURE
 JWT_COOKIE_SAMESITE = settings.JWT_COOKIE_SAMESITE
 JWT_COOKIE_PATH = settings.JWT_COOKIE_PATH
+JWT_COOKIE_PARTITIONED = settings.JWT_COOKIE_PARTITIONED
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -133,6 +134,7 @@ def verify_challenge(response: Response, payload: VerifyRequest = Body(...)):
         domain=JWT_COOKIE_DOMAIN,
         path=JWT_COOKIE_PATH,
     )
+    _ensure_partitioned_cookie(response)
 
     return VerifyResponse(
         ok=True,
@@ -149,6 +151,7 @@ def logout(response: Response):
         domain=JWT_COOKIE_DOMAIN,
         path=JWT_COOKIE_PATH,
     )
+    _ensure_partitioned_cookie(response)
     return {"ok": True}
 
 
@@ -176,3 +179,20 @@ def auth_me(request: Request):
         domain=payload.get("domain"),
         aud=payload.get("aud"),
     )
+
+def _ensure_partitioned_cookie(response: Response) -> None:
+    if not JWT_COOKIE_PARTITIONED:
+        return
+    cookie_prefix = f"{JWT_COOKIE_NAME}".lower() + "="
+    updated = False
+    new_headers = []
+    for key, value in response.raw_headers:
+        if key == b"set-cookie":
+            value_str = value.decode("latin-1")
+            if value_str.lower().startswith(cookie_prefix) and "partitioned" not in value_str.lower():
+                value_str = f"{value_str}; Partitioned"
+                value = value_str.encode("latin-1")
+                updated = True
+        new_headers.append((key, value))
+    if updated:
+        response.raw_headers = new_headers

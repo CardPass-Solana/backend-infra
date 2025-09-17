@@ -22,6 +22,7 @@ JWT_COOKIE_DOMAIN = settings.JWT_COOKIE_DOMAIN
 JWT_COOKIE_SECURE = settings.JWT_COOKIE_SECURE
 JWT_COOKIE_SAMESITE = settings.JWT_COOKIE_SAMESITE
 JWT_COOKIE_PATH = settings.JWT_COOKIE_PATH
+JWT_COOKIE_PARTITIONED = settings.JWT_COOKIE_PARTITIONED
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
