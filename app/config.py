@@ -38,7 +38,7 @@ class Settings:
     JWT_COOKIE_NAME: str = "auth_token"
     JWT_COOKIE_DOMAIN: Optional[str] = None
     JWT_COOKIE_SECURE: bool = True
-    JWT_COOKIE_SAMESITE: str = "lax"  # lax | strict | none
+    JWT_COOKIE_SAMESITE: str = "none"  # lax | strict | none
     JWT_COOKIE_PATH: str = "/"
 
     # Database
