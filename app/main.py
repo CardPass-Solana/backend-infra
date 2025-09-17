@@ -8,8 +8,8 @@ from app.api import applications, auth, bounties, webhooks
 app = FastAPI(title="Headhunt Bounty API", version="0.1.0")
 
 ALLOWED_ORIGINS = [
-    "https://mihari-temp.yeongmin.net",
-    "http://mihari-temp.yeongmin.net",
+    # frontend addr. here
+    "https://cardpass.lidarbtc.workers.dev"
 ]
 
 app.add_middleware(
