@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api import applications, auth, bounties, webhooks
@@ -20,6 +20,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.options("/{path:path}", include_in_schema=False)
+async def handle_options(path: str) -> Response:
+    return Response(status_code=200)
 
 # Health endpoint
 
