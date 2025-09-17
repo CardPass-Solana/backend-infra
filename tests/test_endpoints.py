@@ -4,7 +4,20 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi.testclient import TestClient
 
-from app.main import app, JWT_TTL_SECONDS, JWT_COOKIE_NAME, JWT_COOKIE_SAMESITE, JWT_COOKIE_PATH, JWT_COOKIE_SECURE, JWT_COOKIE_DOMAIN, JWT_SECRET, JWT_ALG
+from app.main import app
+from app.config import get_settings
+
+
+settings = get_settings()
+
+JWT_TTL_SECONDS = settings.JWT_TTL_SECONDS
+JWT_COOKIE_NAME = settings.JWT_COOKIE_NAME
+JWT_COOKIE_SAMESITE = settings.JWT_COOKIE_SAMESITE
+JWT_COOKIE_PATH = settings.JWT_COOKIE_PATH
+JWT_COOKIE_SECURE = settings.JWT_COOKIE_SECURE
+JWT_COOKIE_DOMAIN = settings.JWT_COOKIE_DOMAIN
+JWT_SECRET = settings.JWT_SECRET
+JWT_ALG = settings.JWT_ALG
 
 
 # Base58 helpers matching app.auth.auth alphabet
@@ -26,7 +39,7 @@ def b58_encode(b: bytes) -> str:
     return ("1" * leading_zeros) + result
 
 
-client = TestClient(app)
+client = TestClient(app, base_url="https://testserver")
 
 
 def test_root_ok():
@@ -86,8 +99,11 @@ def test_auth_challenge_and_verify_flow():
     assert data2["ok"] is True
     assert data2["wallet"] == pubkey_b58
     assert data2["used_nonce"] == data1["nonce"]
-    assert isinstance(data2["token"], str) and len(data2["token"]) > 10
+    assert "token" not in data2
     assert isinstance(data2["token_expires_at"], str)
+
+    token_cookie = client.cookies.get(JWT_COOKIE_NAME)
+    assert isinstance(token_cookie, str) and len(token_cookie) > 10
 
     # Set-Cookie assertions
     set_cookie = r2.headers.get("set-cookie", "")
@@ -103,7 +119,7 @@ def test_auth_challenge_and_verify_flow():
     assert "HttpOnly" in set_cookie
 
     # JWT payload assertions
-    decoded = jwt.decode(data2["token"], JWT_SECRET, algorithms=[JWT_ALG], options={"verify_aud": False})
+    decoded = jwt.decode(token_cookie, JWT_SECRET, algorithms=[JWT_ALG], options={"verify_aud": False})
     assert decoded["sub"] == pubkey_b58
     assert decoded["nonce"] == data1["nonce"]
     assert decoded["purpose"] == "Login"
@@ -114,9 +130,18 @@ def test_auth_challenge_and_verify_flow():
     # Allow small tolerance for runtime skew
     assert timedelta(seconds=JWT_TTL_SECONDS - 5) <= delta <= timedelta(seconds=JWT_TTL_SECONDS + 5)
 
-    # 4) Call /auth/me with Authorization header (fresh client, no cookies)
-    client2 = TestClient(app)
-    r_me_bearer = client2.get("/auth/me", headers={"Authorization": f"Bearer {data2['token']}"})
+    # 4) Call /auth/me with existing cookie (client uses https base URL so Secure cookies apply)
+    r_me_cookie = client.get("/auth/me")
+    assert r_me_cookie.status_code == 200
+    me_cookie = r_me_cookie.json()
+    assert me_cookie["sub"] == pubkey_b58
+    assert me_cookie["nonce"] == data1["nonce"]
+
+    # 5) Call /auth/me with Authorization header (fresh client, no cookies)
+    client2 = TestClient(app, base_url="https://testserver")
+    r_me_bearer = client2.get(
+        "/auth/me", headers={"Authorization": f"Bearer {token_cookie}"}
+    )
     assert r_me_bearer.status_code == 200
     me2 = r_me_bearer.json()
     assert me2["sub"] == pubkey_b58
@@ -136,7 +161,7 @@ def test_auth_logout():
 
 def test_auth_me_errors():
     # No token provided
-    client3 = TestClient(app)
+    client3 = TestClient(app, base_url="https://testserver")
     r = client3.get("/auth/me")
     assert r.status_code == 401
     assert r.json().get("detail") in {"missing token", "invalid token"}

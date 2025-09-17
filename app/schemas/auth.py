@@ -30,7 +30,6 @@ class VerifyResponse(BaseModel):
     ok: bool
     wallet: str
     used_nonce: str
-    token: Optional[str] = None
     token_expires_at: Optional[str] = None
 
 

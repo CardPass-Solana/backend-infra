@@ -1,17 +1,23 @@
-version: '3.9'
-
 services:
   backend:
     image: fastapi-test-server:latest
     ports:
       - "9090:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_S3_ENDPOINT_URL: http://localstack:4566
+      S3_PRIVATE_BUCKET: headhunt-private
     depends_on:
       - db
+      - localstack
     networks:
       - app_net
 
   db:
-    image: postgres:16
+    image: postgres:latest
     environment:
       POSTGRES_DB: app
       POSTGRES_USER: app
@@ -24,7 +30,7 @@ services:
       - app_net
 
   pgadmin:
-    image: dpage/pgadmin4:8.13
+    image: dpage/pgadmin4:latest
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -34,9 +40,23 @@ services:
       - db
     networks:
       - app_net
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  localstack:
+    image: localstack/localstack:latest
+    environment:
+      - SERVICES=s3
+      - EDGE_PORT=4566
+      - HOSTNAME_EXTERNAL=localstack
+    ports:
+      - "4566:4566"
+    networks:
+      - app_net
 
 volumes:
   db_data:
+  pgadmin_data:
 
 networks:
   app_net:

@@ -41,6 +41,21 @@ class Settings:
     JWT_COOKIE_SAMESITE: str = "lax"  # lax | strict | none
     JWT_COOKIE_PATH: str = "/"
 
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://app:app@localhost:5432/app"
+
+    # S3 / object storage
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    AWS_S3_ENDPOINT_URL: Optional[str] = None
+    S3_PRIVATE_BUCKET: str = "headhunt-private"
+    S3_PRESIGN_EXPIRES_SECONDS: int = 900
+
+    # External integrations (stubs acceptable for POC)
+    SOLANA_RPC_URL: Optional[str] = None
+    HELIUS_API_KEY: Optional[str] = None
+
 
 _settings: Optional[Settings] = None
 
@@ -53,6 +68,8 @@ def get_settings() -> Settings:
     _load_dotenv_if_available()
 
     auth_domain = os.getenv("AUTH_DOMAIN", Settings.AUTH_DOMAIN)
+    database_url = os.getenv("DATABASE_URL", Settings.DATABASE_URL)
+
     settings = Settings(
         AUTH_DOMAIN=auth_domain,
         AUTH_CHALLENGE_TTL_SECONDS=int(
@@ -68,6 +85,17 @@ def get_settings() -> Settings:
         JWT_COOKIE_SECURE=_str_to_bool(os.getenv("JWT_COOKIE_SECURE"), True),
         JWT_COOKIE_SAMESITE=os.getenv("JWT_COOKIE_SAMESITE", Settings.JWT_COOKIE_SAMESITE).lower(),
         JWT_COOKIE_PATH=os.getenv("JWT_COOKIE_PATH", Settings.JWT_COOKIE_PATH),
+        DATABASE_URL=database_url,
+        AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID", None) or None,
+        AWS_SECRET_ACCESS_KEY=os.getenv("AWS_SECRET_ACCESS_KEY", None) or None,
+        AWS_REGION=os.getenv("AWS_REGION", Settings.AWS_REGION),
+        AWS_S3_ENDPOINT_URL=os.getenv("AWS_S3_ENDPOINT_URL", None) or None,
+        S3_PRIVATE_BUCKET=os.getenv("S3_PRIVATE_BUCKET", Settings.S3_PRIVATE_BUCKET),
+        S3_PRESIGN_EXPIRES_SECONDS=int(
+            os.getenv("S3_PRESIGN_EXPIRES_SECONDS", Settings.S3_PRESIGN_EXPIRES_SECONDS)
+        ),
+        SOLANA_RPC_URL=os.getenv("SOLANA_RPC_URL", None) or None,
+        HELIUS_API_KEY=os.getenv("HELIUS_API_KEY", None) or None,
     )
 
     _settings = settings
