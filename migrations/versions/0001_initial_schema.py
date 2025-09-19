@@ -164,11 +164,11 @@ def upgrade() -> None:
     )
 
     op.create_foreign_key(
-        constraint_name="fk_application_private_current_version",
-        source="applications",
-        referent="application_private_versions",
-        local_cols=["private_current_version_id"],
-        remote_cols=["id"],
+        "fk_application_private_current_version",
+        "applications",
+        "application_private_versions",
+        ["private_current_version_id"],
+        ["id"],
         ondelete="SET NULL",
     )
 
