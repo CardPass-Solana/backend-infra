@@ -67,7 +67,7 @@ class Account(Base):
     )
     wallet: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     role: Mapped[AccountRole] = mapped_column(
-        Enum(AccountRole, name="account_role", native_enum=False), nullable=False
+        Enum(AccountRole, name="hh_account_role", native_enum=False), nullable=False
     )
     display_name: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
@@ -100,7 +100,7 @@ class Bounty(Base):
         MutableList.as_mutable(JSONB), nullable=False, default=list
     )
     status: Mapped[BountyStatus] = mapped_column(
-        Enum(BountyStatus, name="bounty_status", native_enum=False),
+        Enum(BountyStatus, name="hh_bounty_status", native_enum=False),
         nullable=False,
         default=BountyStatus.DRAFT,
     )
@@ -142,7 +142,7 @@ class Application(Base):
         UUID(as_uuid=True), ForeignKey("application_private_versions.id", ondelete="SET NULL")
     )
     status: Mapped[ApplicationStatus] = mapped_column(
-        Enum(ApplicationStatus, name="application_status", native_enum=False),
+        Enum(ApplicationStatus, name="hh_application_status", native_enum=False),
         nullable=False,
         default=ApplicationStatus.SUBMITTED,
     )
@@ -221,7 +221,7 @@ class Deposit(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     tx_signature: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[DepositStatus] = mapped_column(
-        Enum(DepositStatus, name="deposit_status", native_enum=False),
+        Enum(DepositStatus, name="hh_deposit_status", native_enum=False),
         nullable=False,
         default=DepositStatus.PENDING,
     )
@@ -263,7 +263,7 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     entity_type: Mapped[EventEntity] = mapped_column(
-        Enum(EventEntity, name="event_entity", native_enum=False), nullable=False
+        Enum(EventEntity, name="hh_event_entity", native_enum=False), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)

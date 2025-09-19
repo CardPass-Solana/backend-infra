@@ -17,19 +17,19 @@ branch_labels = None
 depends_on = None
 
 account_role_enum = sa.Enum(
-    "recruiter", "candidate", "referrer", "admin", name="account_role"
+    "recruiter", "candidate", "referrer", "admin", name="hh_account_role"
 )
 bounty_status_enum = sa.Enum(
-    "draft", "open", "paused", "filled", "closed", name="bounty_status"
+    "draft", "open", "paused", "filled", "closed", name="hh_bounty_status"
 )
 application_status_enum = sa.Enum(
-    "submitted", "shortlisted", "hired", "rejected", "withdrawn", name="application_status"
+    "submitted", "shortlisted", "hired", "rejected", "withdrawn", name="hh_application_status"
 )
 deposit_status_enum = sa.Enum(
-    "pending", "cleared", "refunded", name="deposit_status"
+    "pending", "cleared", "refunded", name="hh_deposit_status"
 )
 event_entity_enum = sa.Enum(
-    "bounty", "application", "deposit", "payout", name="event_entity"
+    "bounty", "application", "deposit", "payout", name="hh_event_entity"
 )
 
 
