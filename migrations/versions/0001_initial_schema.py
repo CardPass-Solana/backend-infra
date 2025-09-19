@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -16,29 +17,72 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-account_role_enum = sa.Enum(
-    "recruiter", "candidate", "referrer", "admin", name="hh_account_role"
+account_role_values = ("recruiter", "candidate", "referrer", "admin")
+bounty_status_values = ("draft", "open", "paused", "filled", "closed")
+application_status_values = (
+    "submitted",
+    "shortlisted",
+    "hired",
+    "rejected",
+    "withdrawn",
 )
-bounty_status_enum = sa.Enum(
-    "draft", "open", "paused", "filled", "closed", name="hh_bounty_status"
+deposit_status_values = ("pending", "cleared", "refunded")
+event_entity_values = ("bounty", "application", "deposit", "payout")
+
+account_role_enum = postgresql.ENUM(
+    *account_role_values, name="hh_account_role", create_type=False
 )
-application_status_enum = sa.Enum(
-    "submitted", "shortlisted", "hired", "rejected", "withdrawn", name="hh_application_status"
+bounty_status_enum = postgresql.ENUM(
+    *bounty_status_values, name="hh_bounty_status", create_type=False
 )
-deposit_status_enum = sa.Enum(
-    "pending", "cleared", "refunded", name="hh_deposit_status"
+application_status_enum = postgresql.ENUM(
+    *application_status_values, name="hh_application_status", create_type=False
 )
-event_entity_enum = sa.Enum(
-    "bounty", "application", "deposit", "payout", name="hh_event_entity"
+deposit_status_enum = postgresql.ENUM(
+    *deposit_status_values, name="hh_deposit_status", create_type=False
 )
+event_entity_enum = postgresql.ENUM(
+    *event_entity_values, name="hh_event_entity", create_type=False
+)
+
+
+def _ensure_enum(name: str, values: tuple[str, ...]) -> None:
+    literals = ", ".join(f"'{value}'" for value in values)
+    stmt = text(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = :type_name) THEN
+                CREATE TYPE "{name}" AS ENUM ({literals});
+            END IF;
+        END
+        $$;
+        """
+    ).bindparams(type_name=name)
+    op.execute(stmt)
+
+
+def _drop_enum(name: str) -> None:
+    stmt = text(
+        f"""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = :type_name) THEN
+                DROP TYPE "{name}";
+            END IF;
+        END
+        $$;
+        """
+    ).bindparams(type_name=name)
+    op.execute(stmt)
 
 
 def upgrade() -> None:
-    account_role_enum.create(op.get_bind(), checkfirst=True)
-    bounty_status_enum.create(op.get_bind(), checkfirst=True)
-    application_status_enum.create(op.get_bind(), checkfirst=True)
-    deposit_status_enum.create(op.get_bind(), checkfirst=True)
-    event_entity_enum.create(op.get_bind(), checkfirst=True)
+    _ensure_enum("hh_account_role", account_role_values)
+    _ensure_enum("hh_bounty_status", bounty_status_values)
+    _ensure_enum("hh_application_status", application_status_values)
+    _ensure_enum("hh_deposit_status", deposit_status_values)
+    _ensure_enum("hh_event_entity", event_entity_values)
 
     op.create_table(
         "accounts",
@@ -268,8 +312,8 @@ def downgrade() -> None:
     op.drop_index("ix_accounts_wallet", table_name="accounts")
     op.drop_table("accounts")
 
-    event_entity_enum.drop(op.get_bind(), checkfirst=True)
-    deposit_status_enum.drop(op.get_bind(), checkfirst=True)
-    application_status_enum.drop(op.get_bind(), checkfirst=True)
-    bounty_status_enum.drop(op.get_bind(), checkfirst=True)
-    account_role_enum.drop(op.get_bind(), checkfirst=True)
+    _drop_enum("hh_event_entity")
+    _drop_enum("hh_deposit_status")
+    _drop_enum("hh_application_status")
+    _drop_enum("hh_bounty_status")
+    _drop_enum("hh_account_role")
