@@ -35,6 +35,29 @@ class ApplicationCreate(BaseModel):
     )
 
 
+class ApplicationPrivateProfileDemo(BaseModel):
+    full_name: str
+    contact_email: str = Field(..., description="Preferred email for direct outreach.")
+    contact_phone: Optional[str] = Field(None, description="Optional phone number for follow-ups.")
+    telegram: Optional[str] = Field(None, description="Telegram handle for quick coordination.")
+    resume_url: Optional[str] = Field(
+        None, description="Link to a hosted resume or CV preview."
+    )
+    resume_excerpt: Optional[str] = Field(
+        None, description="Short summary or highlights pulled from the resume."
+    )
+    cover_letter: Optional[str] = Field(None, description="Optional cover letter or intro note.")
+    attachments: List[str] = Field(
+        default_factory=list,
+        description="Additional asset references such as portfolio links or case studies.",
+    )
+
+
+class SampleResumeResponse(BaseModel):
+    public_profile: ApplicationPublicProfile
+    private_profile: ApplicationPrivateProfileDemo
+
+
 class ApplicationResponse(BaseModel):
     id: uuid.UUID
     bounty_id: uuid.UUID

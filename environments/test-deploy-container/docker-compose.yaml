@@ -53,9 +53,12 @@ services:
       - "4566:4566"
     networks:
       - app_net
+    volumes:
+    - s3_data:/tmp/localstack
 
 volumes:
   db_data:
+  s3_data:
   pgadmin_data:
 
 networks:

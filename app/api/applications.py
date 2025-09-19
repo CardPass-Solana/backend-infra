@@ -23,9 +23,12 @@ from app.models import (
 )
 from app.schemas import (
     ApplicationCreate,
+    ApplicationPrivateProfileDemo,
+    ApplicationPublicProfile,
     ApplicationResponse,
     DepositCreate,
     DepositResponse,
+    SampleResumeResponse,
 )
 from app.services.accounts import get_or_create_account
 from app.services.storage import get_private_storage_service
@@ -93,6 +96,53 @@ async def create_application(
     await session.commit()
     await session.refresh(application)
     return application
+
+
+@router.get("", response_model=list[ApplicationResponse])
+async def list_applications(session: AsyncSession = Depends(get_db_session)):
+    result = await session.execute(
+        select(Application).options(selectinload(Application.bounty))
+    )
+    return result.scalars().unique().all()
+
+
+@router.get("/sample-resume", response_model=SampleResumeResponse)
+async def get_sample_resume() -> SampleResumeResponse:
+    public_profile = ApplicationPublicProfile(
+        skills=["Solana", "TypeScript", "Rust", "React"],
+        experience_years=6,
+        region="Remote - North America",
+        bio_short="Senior blockchain engineer delivering production-ready Solana apps.",
+        contact_price="18% bounty share",
+        headline="Senior Solana Engineer",
+        links=[
+            "https://github.com/sample-engineer",
+            "https://www.linkedin.com/in/sample-solana-engineer",
+        ],
+    )
+
+    private_profile = ApplicationPrivateProfileDemo(
+        full_name="Ava Solana",
+        contact_email="ava.solana@example.dev",
+        contact_phone="+1-415-555-2048",
+        telegram="@ava_solana",
+        resume_url="https://example.dev/resume/ava-solana.pdf",
+        resume_excerpt=(
+            "Principal engineer with 6+ years building DeFi infrastructure and"
+            " wallet experiences across Solana and Ethereum."
+        ),
+        cover_letter=(
+            "Hi team — I'm excited about the opportunity to build recruitment"
+            " automation with you. I've led engineering teams shipping two"
+            " Solana programs to mainnet and would love to support your stack."
+        ),
+        attachments=[
+            "https://github.com/sample-engineer/rust-solana-examples",
+            "https://dev.to/sample-engineer/optimizing-solana-programs",
+        ],
+    )
+
+    return SampleResumeResponse(public_profile=public_profile, private_profile=private_profile)
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)
