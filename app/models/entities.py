@@ -156,7 +156,10 @@ class Application(Base):
 
     bounty: Mapped[Bounty] = relationship(back_populates="applications")
     private_versions: Mapped[List["ApplicationPrivateVersion"]] = relationship(
-        back_populates="application", cascade="all, delete-orphan", passive_deletes=True
+        back_populates="application",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        foreign_keys="ApplicationPrivateVersion.application_id",
     )
     private_current_version: Mapped[Optional["ApplicationPrivateVersion"]] = relationship(
         "ApplicationPrivateVersion",
