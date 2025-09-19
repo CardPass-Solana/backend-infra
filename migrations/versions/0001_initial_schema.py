@@ -1,4 +1,4 @@
-"""initial schema for bounty platform
+"""Initial schema for bounty platform
 
 Revision ID: 0001_initial_schema
 Revises: 
@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -17,78 +16,30 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-account_role_values = ("recruiter", "candidate", "referrer", "admin")
-bounty_status_values = ("draft", "open", "paused", "filled", "closed")
-application_status_values = (
+
+ACCOUNT_ROLES = ("recruiter", "candidate", "referrer", "admin")
+BOUNTY_STATUSES = ("draft", "open", "paused", "filled", "closed")
+APPLICATION_STATUSES = (
     "submitted",
     "shortlisted",
     "hired",
     "rejected",
     "withdrawn",
 )
-deposit_status_values = ("pending", "cleared", "refunded")
-event_entity_values = ("bounty", "application", "deposit", "payout")
-
-account_role_enum = postgresql.ENUM(
-    *account_role_values, name="hh_account_role", create_type=False
-)
-bounty_status_enum = postgresql.ENUM(
-    *bounty_status_values, name="hh_bounty_status", create_type=False
-)
-application_status_enum = postgresql.ENUM(
-    *application_status_values, name="hh_application_status", create_type=False
-)
-deposit_status_enum = postgresql.ENUM(
-    *deposit_status_values, name="hh_deposit_status", create_type=False
-)
-event_entity_enum = postgresql.ENUM(
-    *event_entity_values, name="hh_event_entity", create_type=False
-)
+DEPOSIT_STATUSES = ("pending", "cleared", "refunded")
+EVENT_ENTITIES = ("bounty", "application", "deposit", "payout")
 
 
-def _ensure_enum(name: str, values: tuple[str, ...]) -> None:
-    literals = ", ".join(f"'{value}'" for value in values)
-    stmt = text(
-        f"""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = :type_name) THEN
-                CREATE TYPE "{name}" AS ENUM ({literals});
-            END IF;
-        END
-        $$;
-        """
-    ).bindparams(type_name=name)
-    op.execute(stmt)
-
-
-def _drop_enum(name: str) -> None:
-    stmt = text(
-        f"""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = :type_name) THEN
-                DROP TYPE "{name}";
-            END IF;
-        END
-        $$;
-        """
-    ).bindparams(type_name=name)
-    op.execute(stmt)
+def _enum(name: str, values: tuple[str, ...]) -> sa.Enum:
+    return sa.Enum(*values, name=name, native_enum=False, validate_strings=True)
 
 
 def upgrade() -> None:
-    _ensure_enum("hh_account_role", account_role_values)
-    _ensure_enum("hh_bounty_status", bounty_status_values)
-    _ensure_enum("hh_application_status", application_status_values)
-    _ensure_enum("hh_deposit_status", deposit_status_values)
-    _ensure_enum("hh_event_entity", event_entity_values)
-
     op.create_table(
         "accounts",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("wallet", sa.String(length=128), nullable=False),
-        sa.Column("role", account_role_enum, nullable=False),
+        sa.Column("role", _enum("hh_account_role", ACCOUNT_ROLES), nullable=False),
         sa.Column("display_name", sa.String(length=255), nullable=True),
         sa.Column(
             "created_at",
@@ -110,7 +61,11 @@ def upgrade() -> None:
         sa.Column("reward_amount", sa.Numeric(precision=12, scale=2), nullable=False),
         sa.Column("currency", sa.String(length=16), nullable=False),
         sa.Column("escrow_account", sa.String(length=128), nullable=True),
-        sa.Column("status", bounty_status_enum, nullable=False),
+        sa.Column(
+            "status",
+            _enum("hh_bounty_status", BOUNTY_STATUSES),
+            nullable=False,
+        ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
@@ -140,7 +95,7 @@ def upgrade() -> None:
         sa.Column("public_profile", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("cnft_mint", sa.String(length=128), nullable=True),
         sa.Column("private_current_version_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("status", application_status_enum, nullable=False),
+        sa.Column("status", _enum("hh_application_status", APPLICATION_STATUSES), nullable=False),
         sa.Column("access_granted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
@@ -170,6 +125,12 @@ def upgrade() -> None:
         ["applicant_wallet"],
         unique=False,
     )
+    op.create_index(
+        "ix_application_referrer_wallet",
+        "applications",
+        ["referrer_wallet"],
+        unique=False,
+    )
 
     op.create_table(
         "application_private_versions",
@@ -191,11 +152,9 @@ def upgrade() -> None:
             ["uploaded_by_id"], ["accounts.id"], ondelete="SET NULL"
         ),
         sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_unique_constraint(
-        "uq_application_payload_hash",
-        "application_private_versions",
-        ["application_id", "payload_sha256"],
+        sa.UniqueConstraint(
+            "application_id", "payload_sha256", name="uq_application_payload_hash"
+        ),
     )
     op.create_index(
         "ix_private_versions_application",
@@ -220,7 +179,7 @@ def upgrade() -> None:
         sa.Column("recruiter_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("amount", sa.Numeric(precision=12, scale=2), nullable=False),
         sa.Column("tx_signature", sa.String(length=255), nullable=False),
-        sa.Column("status", deposit_status_enum, nullable=False),
+        sa.Column("status", _enum("hh_deposit_status", DEPOSIT_STATUSES), nullable=False),
         sa.Column("cleared_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
@@ -263,7 +222,7 @@ def upgrade() -> None:
     op.create_table(
         "events",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("entity_type", event_entity_enum, nullable=False),
+        sa.Column("entity_type", _enum("hh_event_entity", EVENT_ENTITIES), nullable=False),
         sa.Column("entity_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("event_type", sa.String(length=64), nullable=False),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
@@ -301,6 +260,7 @@ def downgrade() -> None:
     )
     op.drop_table("application_private_versions")
 
+    op.drop_index("ix_application_referrer_wallet", table_name="applications")
     op.drop_index("ix_application_applicant_wallet", table_name="applications")
     op.drop_index("ix_application_bounty_id", table_name="applications")
     op.drop_index("ix_application_status", table_name="applications")
@@ -311,9 +271,3 @@ def downgrade() -> None:
 
     op.drop_index("ix_accounts_wallet", table_name="accounts")
     op.drop_table("accounts")
-
-    _drop_enum("hh_event_entity")
-    _drop_enum("hh_deposit_status")
-    _drop_enum("hh_application_status")
-    _drop_enum("hh_bounty_status")
-    _drop_enum("hh_account_role")
