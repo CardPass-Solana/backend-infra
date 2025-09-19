@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy import (
@@ -15,6 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -88,9 +90,15 @@ class Bounty(Base):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
-    reward_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    reward_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(16), nullable=False, default="USDC")
     escrow_account: Mapped[Optional[str]] = mapped_column(String(128))
+    company: Mapped[Optional[str]] = mapped_column(String(255))
+    region: Mapped[Optional[str]] = mapped_column(String(255))
+    employment_type: Mapped[Optional[str]] = mapped_column(String(64))
+    skills: Mapped[list[str]] = mapped_column(
+        MutableList.as_mutable(JSONB), nullable=False, default=list
+    )
     status: Mapped[BountyStatus] = mapped_column(
         Enum(BountyStatus, name="bounty_status", native_enum=False),
         nullable=False,
@@ -111,6 +119,9 @@ class Bounty(Base):
 
     __table_args__ = (
         Index("ix_bounty_status", "status"),
+        Index("ix_bounty_company", "company"),
+        Index("ix_bounty_region", "region"),
+        Index("ix_bounty_employment_type", "employment_type"),
     )
 
 
@@ -207,7 +218,7 @@ class Deposit(Base):
     recruiter_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
-    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     tx_signature: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[DepositStatus] = mapped_column(
         Enum(DepositStatus, name="deposit_status", native_enum=False),
@@ -236,9 +247,9 @@ class Payout(Base):
     application_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False
     )
-    recruit_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    referrer_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)
-    platform_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)
+    recruit_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    referrer_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=True)
+    platform_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=True)
     tx_signature: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

@@ -2,16 +2,33 @@ from __future__ import annotations
 
 import uuid
 
+import asyncio
+import base64
+import binascii
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Path, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db_session
+from app.models import (
+    AccountRole,
+    Application,
+    ApplicationPrivateVersion,
+    Bounty,
+    Deposit,
+    DepositStatus,
+)
 from app.schemas import (
     ApplicationCreate,
     ApplicationResponse,
     DepositCreate,
     DepositResponse,
 )
+from app.services.accounts import get_or_create_account
+from app.services.storage import get_private_storage_service
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -20,10 +37,62 @@ router = APIRouter(prefix="/applications", tags=["applications"])
 async def create_application(
     payload: ApplicationCreate, session: AsyncSession = Depends(get_db_session)
 ):
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Application submission not yet implemented; stub endpoint.",
+    bounty = await session.get(Bounty, payload.bounty_id)
+    if bounty is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="bounty not found")
+
+    applicant_account = await get_or_create_account(
+        session=session,
+        wallet=payload.applicant_wallet,
+        role=AccountRole.CANDIDATE,
     )
+
+    if payload.referrer_wallet:
+        await get_or_create_account(
+            session=session,
+            wallet=payload.referrer_wallet,
+            role=AccountRole.REFERRER,
+        )
+
+    public_profile = payload.public_profile.model_dump()
+
+    application = Application(
+        bounty_id=bounty.id,
+        applicant_wallet=payload.applicant_wallet,
+        referrer_wallet=payload.referrer_wallet,
+        public_profile=public_profile,
+    )
+    session.add(application)
+    await session.flush()
+
+    if payload.private_payload_base64:
+        try:
+            private_bytes = base64.b64decode(payload.private_payload_base64)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="invalid private payload"
+            ) from exc
+
+        storage = get_private_storage_service()
+        version_id = uuid.uuid4()
+        key = storage.build_private_key(application.id, version_id)
+        payload_sha256 = storage.compute_sha256(private_bytes)
+        await asyncio.to_thread(storage.put_object, key, private_bytes)
+
+        private_version = ApplicationPrivateVersion(
+            id=version_id,
+            application_id=application.id,
+            s3_key=key,
+            payload_sha256=payload_sha256,
+            uploaded_by_id=applicant_account.id,
+        )
+        session.add(private_version)
+        await session.flush()
+        application.private_current_version_id = private_version.id
+
+    await session.commit()
+    await session.refresh(application)
+    return application
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)
@@ -31,10 +100,15 @@ async def get_application(
     application_id: uuid.UUID = Path(...),
     session: AsyncSession = Depends(get_db_session),
 ):
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Application retrieval not yet implemented; stub endpoint.",
+    result = await session.execute(
+        select(Application)
+            .options(selectinload(Application.bounty))
+            .where(Application.id == application_id)
     )
+    application = result.scalar_one_or_none()
+    if application is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application not found")
+    return application
 
 
 @router.post(
@@ -47,7 +121,35 @@ async def record_deposit(
     payload: DepositCreate,
     session: AsyncSession = Depends(get_db_session),
 ):
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Deposit recording not yet implemented; stub endpoint.",
+    result = await session.execute(
+        select(Application)
+        .options(selectinload(Application.bounty))
+        .where(Application.id == application_id)
     )
+    application = result.scalar_one_or_none()
+    if application is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application not found")
+
+    recruiter_account = await get_or_create_account(
+        session=session,
+        wallet=payload.recruiter_wallet,
+        role=AccountRole.RECRUITER,
+    )
+
+    if application.bounty.recruiter_id != recruiter_account.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="recruiter does not own the bounty for this application",
+        )
+
+    deposit = Deposit(
+        application_id=application.id,
+        recruiter_id=recruiter_account.id,
+        amount=Decimal(str(payload.amount)),
+        tx_signature=payload.tx_signature,
+        status=DepositStatus.PENDING,
+    )
+    session.add(deposit)
+    await session.commit()
+    await session.refresh(deposit)
+    return deposit

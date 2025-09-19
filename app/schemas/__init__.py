@@ -1,5 +1,6 @@
 from .applications import (
     ApplicationCreate,
+    ApplicationPublicProfile,
     ApplicationResponse,
     DepositCreate,
     DepositResponse,
@@ -17,6 +18,7 @@ from .auth import (
 
 __all__ = [
     "ApplicationCreate",
+    "ApplicationPublicProfile",
     "ApplicationResponse",
     "DepositCreate",
     "DepositResponse",

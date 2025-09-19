@@ -2,18 +2,33 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
 from app.models import ApplicationStatus, DepositStatus
 
 
+class ApplicationPublicProfile(BaseModel):
+    skills: List[str] = Field(default_factory=list)
+    experience_years: float = Field(..., ge=0)
+    region: str
+    bio_short: str = Field(..., max_length=280)
+    contact_price: str = Field(..., description="Quoted rate or bounty share.")
+    headline: Optional[str] = None
+    links: Optional[List[str]] = None
+
+    class Config:
+        extra = "allow"
+
+
 class ApplicationCreate(BaseModel):
     bounty_id: uuid.UUID
     applicant_wallet: str
     referrer_wallet: Optional[str]
-    public_profile: Dict[str, Any] = Field(..., description="Public traits ultimately minted to CNFT")
+    public_profile: ApplicationPublicProfile = Field(
+        ..., description="Public traits ultimately minted to CNFT"
+    )
     private_payload_base64: Optional[str] = Field(
         None,
         description="Optional base64 encoded private profile to upload in-line; alternative is to request upload URL.",
@@ -25,7 +40,7 @@ class ApplicationResponse(BaseModel):
     bounty_id: uuid.UUID
     applicant_wallet: str
     referrer_wallet: Optional[str]
-    public_profile: Dict[str, Any]
+    public_profile: ApplicationPublicProfile
     cnft_mint: Optional[str]
     status: ApplicationStatus
     access_granted_at: Optional[datetime]
@@ -46,6 +61,7 @@ class PrivateVersionResponse(BaseModel):
 class DepositCreate(BaseModel):
     amount: float = Field(..., gt=0)
     tx_signature: str = Field(..., min_length=8)
+    recruiter_wallet: str = Field(..., min_length=20)
 
 
 class DepositResponse(BaseModel):
